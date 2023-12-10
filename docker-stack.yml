@@ -1,31 +1,61 @@
 version: "3.8"
 services:
-  api:
-    image: localhost:5000/api:latest
-    restart: always
-    container_name: api
-    secrets:
-      - source: api.env
-        target: /opt/app/.env
+  nginx:
+    image: nginx:alpine-slim
+    # healthcheck:
+    #   test: curl -f http://localhost:8080 || exit 1
+    #   interval: 1m30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 2m
+    deploy:
+      mode: global
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+    configs:
+      - source: my_conf
+        target: /etc/nginx/conf.d/default.conf
     ports:
-      - 3002:3000
+      - 8080:80
     networks:
       - myNetwork
     depends_on:
-      - rmq
-  rmq:
-    image: rabbitmq:3-management
-    restart: always
+      - postgres
+  postgres:
+    image: postgres
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      placement:
+        constraints:
+          - node.labels.DB == true
+    volumes:
+      - ~/DB_folder:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    secrets:
+      - source: secret_psg.env
+        target: /secret.env
     networks:
       - myNetwork
+    # env_file:
+    #   - /secret.env
     environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=admin
+      POSTGRES_USER: alex
+      POSTGRES_PASSWORD: 123
 
 networks:
   myNetwork:
     driver: overlay
 
 secrets:
-  api.env:
+  secret_psg.env:
+    external: true
+
+configs:
+  my_conf:
     external: true
